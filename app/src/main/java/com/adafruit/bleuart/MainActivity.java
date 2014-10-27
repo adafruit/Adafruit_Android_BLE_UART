@@ -10,6 +10,8 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import java.lang.Thread;
+
 public class MainActivity extends Activity implements BluetoothLeUart.Callback {
 
     // UI elements
@@ -34,8 +36,34 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
 
     // Handler for mouse click on the send button.
     public void sendClick(View view) {
+        StringBuilder stringBuilder = new StringBuilder();
         String message = input.getText().toString();
-        uart.send(message);
+
+        // We can only send 20 bytes per packet, so break longer messages
+        // up into 20 byte payloads
+        int len = message.length();
+        int pos = 0;
+        while(len != 0)
+        {
+            stringBuilder.setLength(0);
+            if (len>=20)
+            {
+                stringBuilder.append(message.toCharArray(), pos, 20 );
+                len-=20;
+                pos+=20;
+            }
+            else
+            {
+                stringBuilder.append(message.toCharArray(), pos, len);
+                len = 0;
+            }
+            uart.send(stringBuilder.toString());
+        }
+        // Terminate with a newline character
+        // ToDo: Make the newline char configurable in the UI ("\r\n", ”\n" or no newline)
+        stringBuilder.setLength(0);
+        stringBuilder.append("\n");
+        uart.send(stringBuilder.toString());
     }
 
     @Override

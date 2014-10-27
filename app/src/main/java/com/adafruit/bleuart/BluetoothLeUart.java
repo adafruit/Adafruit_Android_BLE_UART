@@ -80,6 +80,14 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         if (data != null && !data.isEmpty()) {
             send(data.getBytes(Charset.forName("UTF-8")));
         }
+        // ToDo: Update to a non UI thread delay and sync with each 'connection interval' via a
+        // semaphore or some other mechanism (is the connection event exposed in the Android
+        // BLE API???). It seems we can only send one packet (20 bytes max) per connection event.
+        try {
+            Thread.sleep(110);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     // Register the specified callback to receive UART callbacks.
