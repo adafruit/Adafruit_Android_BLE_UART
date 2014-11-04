@@ -7,23 +7,34 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
+import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.lang.String;
 
 public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothAdapter.LeScanCallback {
 
-    // UUIDs for UAT service and associated characteristics.
+    // UUIDs for UART service and associated characteristics.
     public static UUID UART_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
     public static UUID TX_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
     public static UUID RX_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
-    // UUID for the BTLE client characteristic which is necessary for notifications.
+    // UUID for the UART BTLE client characteristic which is necessary for notifications.
     public static UUID CLIENT_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+
+    // UUIDs for the Device Information service and associated characeristics.
+    public static UUID DIS_UUID       = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb");
+    public static UUID DIS_MANUF_UUID = UUID.fromString("00002a29-0000-1000-8000-00805f9b34fb");
+    public static UUID DIS_MODEL_UUID = UUID.fromString("00002a24-0000-1000-8000-00805f9b34fb");
+    public static UUID DIS_HWREV_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb");
+    public static UUID DIS_SWREV_UUID = UUID.fromString("00002a28-0000-1000-8000-00805f9b34fb");
 
     // Internal UART state.
     private Context context;
@@ -34,6 +45,16 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
     private BluetoothGattCharacteristic rx;
     private boolean connectFirst;
 
+    // Device Information state.
+    private BluetoothGattCharacteristic disManuf;
+    private BluetoothGattCharacteristic disModel;
+    private BluetoothGattCharacteristic disHWRev;
+    private BluetoothGattCharacteristic disSWRev;
+    private boolean disAvailable;
+
+    // Queues for characteristic read (synchronous)
+    private Queue<BluetoothGattCharacteristic> readQueue;
+
     // Interface for a BluetoothLeUart client to be notified of UART actions.
     public interface Callback {
         public void onConnected(BluetoothLeUart uart);
@@ -41,6 +62,7 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         public void onDisconnected(BluetoothLeUart uart);
         public void onReceive(BluetoothLeUart uart, BluetoothGattCharacteristic rx);
         public void onDeviceFound(BluetoothDevice device);
+        public void onDeviceInfoAvailable();
     }
 
     public BluetoothLeUart(Context context) {
@@ -51,7 +73,13 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         this.gatt = null;
         this.tx = null;
         this.rx = null;
+        this.disManuf = null;
+        this.disModel = null;
+        this.disHWRev = null;
+        this.disSWRev = null;
+        this.disAvailable = false;
         this.connectFirst = false;
+        this.readQueue = new LinkedList<BluetoothGattCharacteristic>();
     }
 
     // Return instance of BluetoothGatt.
@@ -63,6 +91,24 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
     public boolean isConnected() {
         return (tx != null && rx != null);
     }
+
+    public String getDeviceInfo() {
+        if (tx == null || !disAvailable ) {
+            // Do nothing if there is no connection.
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(disManuf.getStringValue(0));
+        sb.append(" ");
+        sb.append(disModel.getStringValue(0));
+        sb.append(" (Firmware v");
+        sb.append(disSWRev.getStringValue(0));
+        sb.append(")");
+        return sb.toString();
+    };
+
+    public boolean deviceInfoAvailable() { return disAvailable; }
 
     // Send data to connected UART device.
     public void send(byte[] data) {
@@ -169,9 +215,29 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
             connectFailure();
             return;
         }
-        // Save reference to each characteristic.
+
+        // Save reference to each UART characteristic.
         tx = gatt.getService(UART_UUID).getCharacteristic(TX_UUID);
         rx = gatt.getService(UART_UUID).getCharacteristic(RX_UUID);
+
+        // Save reference to each DIS characteristic.
+        disManuf = gatt.getService(DIS_UUID).getCharacteristic(DIS_MANUF_UUID);
+        disModel = gatt.getService(DIS_UUID).getCharacteristic(DIS_MODEL_UUID);
+        disHWRev = gatt.getService(DIS_UUID).getCharacteristic(DIS_HWREV_UUID);
+        disSWRev = gatt.getService(DIS_UUID).getCharacteristic(DIS_SWREV_UUID);
+
+        // Add device information characteristics to the read queue
+        // These need to be queued because we have to wait for the response to the first
+        // read request before a second one can be processed (which makes you wonder why they
+        // implemented this with async logic to begin with???)
+        readQueue.add(disManuf);
+        readQueue.add(disModel);
+        readQueue.add(disHWRev);
+        readQueue.add(disSWRev);
+
+        // Request a dummy read to get the device information queue going
+        gatt.readCharacteristic(disManuf);
+
         // Setup notifications on RX characteristic changes (i.e. data received).
         // First call setCharacteristicNotification to enable notification.
         if (!gatt.setCharacteristicNotification(rx, true)) {
@@ -200,6 +266,29 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
         notifyOnReceive(this, characteristic);
+    }
+
+    @Override
+    public void onCharacteristicRead (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        super.onCharacteristicRead(gatt, characteristic, status);
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            Log.w("DIS", characteristic.getStringValue(0));
+        }
+        else {
+            Log.w("DIS", "Failed reading characteristic " + characteristic.getUuid().toString());
+        }
+
+        // Check if there is anything left in the queue
+        if(readQueue.size() > 0){
+            // Send a read request for the next item in the queue
+            gatt.readCharacteristic(readQueue.element());
+            readQueue.remove();
+        }
+        else {
+            // We've reached the end of the queue
+            disAvailable = true;
+            notifyOnDeviceInfoAvailable();
+        }
     }
 
     @Override
@@ -258,6 +347,14 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         for (Callback cb : callbacks.keySet()) {
             if (cb != null) {
                 cb.onDeviceFound(device);
+            }
+        }
+    }
+
+    private void notifyOnDeviceInfoAvailable() {
+        for (Callback cb : callbacks.keySet()) {
+            if (cb != null) {
+                cb.onDeviceInfoAvailable();
             }
         }
     }

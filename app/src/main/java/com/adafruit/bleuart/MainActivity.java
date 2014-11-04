@@ -121,6 +121,7 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     public void onConnected(BluetoothLeUart uart) {
         // Called when UART device is connected and ready to send/receive data.
         writeLine("Connected!");
+        // ToDo: Insert a timeout waiting for device information!
     }
 
     @Override
@@ -145,5 +146,10 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     public void onDeviceFound(BluetoothDevice device) {
         // Called when a UART device is discovered (after calling startScan).
         writeLine("Found device: " + device.getAddress());
+    }
+
+    @Override
+    public void onDeviceInfoAvailable() {
+        writeLine(uart.getDeviceInfo());
     }
 }
