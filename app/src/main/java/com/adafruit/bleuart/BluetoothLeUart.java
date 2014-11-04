@@ -99,12 +99,9 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append(disManuf.getStringValue(0));
-        sb.append(" ");
-        sb.append(disModel.getStringValue(0));
-        sb.append(" (Firmware v");
-        sb.append(disSWRev.getStringValue(0));
-        sb.append(")");
+        sb.append("Manufacturer : " + disManuf.getStringValue(0) + "\n");
+        sb.append("Model        : " + disModel.getStringValue(0) + "\n");
+        sb.append("Firmware     : " + disSWRev.getStringValue(0) + "\n");
         return sb.toString();
     };
 
