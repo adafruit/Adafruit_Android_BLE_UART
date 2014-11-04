@@ -29,7 +29,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/send"
-        android:layout_alignParentBottom="true">
+        android:id="@+id/scrollView"
+        android:layout_above="@+id/newline">
 
         <TextView
             android:id="@+id/messages"
@@ -38,5 +39,14 @@
             android:fontFamily="monospace" />
 
     </ScrollView>
+
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Insert NewLine on Send"
+        android:id="@+id/newline"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignEnd="@+id/scrollView" />
 
 </RelativeLayout>

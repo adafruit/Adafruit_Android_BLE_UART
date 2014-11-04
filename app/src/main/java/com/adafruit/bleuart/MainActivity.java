@@ -8,6 +8,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -19,6 +20,7 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     private TextView messages;
     private EditText input;
     private Button   send;
+    private CheckBox newline;
 
     // Bluetooth LE UART instance.  This is defined in BluetoothLeUart.java.
     private BluetoothLeUart uart;
@@ -58,11 +60,13 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
             }
             uart.send(stringBuilder.toString());
         }
-        // Terminate with a newline character
-        // ToDo: Make the newline char configurable in the UI ("\r\n", ”\n" or no newline)
-        stringBuilder.setLength(0);
-        stringBuilder.append("\n");
-        uart.send(stringBuilder.toString());
+        // Terminate with a newline character if requests
+        newline = (CheckBox) findViewById(R.id.newline);
+        if (newline.isChecked()) {
+            stringBuilder.setLength(0);
+            stringBuilder.append("\n");
+            uart.send(stringBuilder.toString());
+        }
     }
 
     @Override
