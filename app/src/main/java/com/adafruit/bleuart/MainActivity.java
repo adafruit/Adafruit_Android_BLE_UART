@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -85,6 +86,9 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
         send = (Button)findViewById(R.id.send);
         send.setClickable(false);
         send.setEnabled(false);
+
+        // Enable auto-scroll in the TextView
+        messages.setMovementMethod(new ScrollingMovementMethod());
     }
 
     // OnCreate, called once to initialize the activity.

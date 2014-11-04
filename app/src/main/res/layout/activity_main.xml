@@ -25,20 +25,18 @@
         android:layout_alignParentTop="true"
         android:layout_alignParentLeft="true"/>
 
-    <ScrollView
+    <TextView
+        android:id="@+id/messages"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/send"
-        android:id="@+id/scrollView"
-        android:layout_above="@+id/newline">
-
-        <TextView
-            android:id="@+id/messages"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace" />
-
-    </ScrollView>
+        android:layout_above="@+id/newline"
+        android:fontFamily="monospace"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"
+        android:scrollbars="vertical"
+        android:scrollbarAlwaysDrawVerticalTrack="true"
+        android:gravity="bottom"/>
 
     <CheckBox
         android:layout_width="wrap_content"
