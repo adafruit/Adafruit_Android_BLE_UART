@@ -44,6 +44,7 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
     private BluetoothGattCharacteristic tx;
     private BluetoothGattCharacteristic rx;
     private boolean connectFirst;
+    private boolean writeInProgress; // Flag to indicate a write is currently in progress
 
     // Device Information state.
     private BluetoothGattCharacteristic disManuf;
@@ -79,6 +80,7 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         this.disSWRev = null;
         this.disAvailable = false;
         this.connectFirst = false;
+        this.writeInProgress = false;
         this.readQueue = new ConcurrentLinkedQueue<BluetoothGattCharacteristic>();
     }
 
@@ -114,21 +116,16 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         }
         // Update TX characteristic value.  Note the setValue overload that takes a byte array must be used.
         tx.setValue(data);
+        writeInProgress = true; // Set the write in progress flag
         gatt.writeCharacteristic(tx);
+        // ToDo: Update to include a timeout in case this goes into the weeds
+        while (writeInProgress); // Wait for the flag to clear in onCharacteristicWrite
     }
 
     // Send data to connected UART device.
     public void send(String data) {
         if (data != null && !data.isEmpty()) {
             send(data.getBytes(Charset.forName("UTF-8")));
-        }
-        // ToDo: Update to a non UI thread delay and sync with each 'connection interval' via a
-        // semaphore or some other mechanism (is the connection event exposed in the Android
-        // BLE API???). It seems we can only send one packet (20 bytes max) per connection event.
-        try {
-            Thread.sleep(110);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
     }
 
@@ -285,6 +282,16 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         else {
             //Log.w("DIS", "Failed reading characteristic " + characteristic.getUuid().toString());
         }
+    }
+
+    @Override
+    public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        super.onCharacteristicWrite(gatt, characteristic, status);
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            // Log.d(TAG,"Characteristic write successful");
+        }
+        writeInProgress = false;
     }
 
     @Override
