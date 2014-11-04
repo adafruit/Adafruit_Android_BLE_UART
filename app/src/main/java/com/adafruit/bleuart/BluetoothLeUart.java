@@ -13,19 +13,20 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.lang.String;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothAdapter.LeScanCallback {
 
     // UUIDs for UART service and associated characteristics.
     public static UUID UART_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
-    public static UUID TX_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
-    public static UUID RX_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+    public static UUID TX_UUID   = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
+    public static UUID RX_UUID   = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+
     // UUID for the UART BTLE client characteristic which is necessary for notifications.
     public static UUID CLIENT_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
@@ -79,7 +80,7 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         this.disSWRev = null;
         this.disAvailable = false;
         this.connectFirst = false;
-        this.readQueue = new LinkedList<BluetoothGattCharacteristic>();
+        this.readQueue = new ConcurrentLinkedQueue<BluetoothGattCharacteristic>();
     }
 
     // Return instance of BluetoothGatt.
@@ -97,7 +98,6 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
             // Do nothing if there is no connection.
             return "";
         }
-
         StringBuilder sb = new StringBuilder();
         sb.append(disManuf.getStringValue(0));
         sb.append(" ");
@@ -230,10 +230,10 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
         // These need to be queued because we have to wait for the response to the first
         // read request before a second one can be processed (which makes you wonder why they
         // implemented this with async logic to begin with???)
-        readQueue.add(disManuf);
-        readQueue.add(disModel);
-        readQueue.add(disHWRev);
-        readQueue.add(disSWRev);
+        readQueue.offer(disManuf);
+        readQueue.offer(disModel);
+        readQueue.offer(disHWRev);
+        readQueue.offer(disSWRev);
 
         // Request a dummy read to get the device information queue going
         gatt.readCharacteristic(disManuf);
@@ -271,23 +271,22 @@ public class BluetoothLeUart extends BluetoothGattCallback implements BluetoothA
     @Override
     public void onCharacteristicRead (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        if (status == BluetoothGatt.GATT_SUCCESS) {
-            Log.w("DIS", characteristic.getStringValue(0));
-        }
-        else {
-            Log.w("DIS", "Failed reading characteristic " + characteristic.getUuid().toString());
-        }
 
-        // Check if there is anything left in the queue
-        if(readQueue.size() > 0){
-            // Send a read request for the next item in the queue
-            gatt.readCharacteristic(readQueue.element());
-            readQueue.remove();
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            //Log.w("DIS", characteristic.getStringValue(0));
+            // Check if there is anything left in the queue
+            if(readQueue.size() > 0){
+                // Send a read request for the next item in the queue
+                gatt.readCharacteristic(readQueue.poll());
+            }
+            else {
+                // We've reached the end of the queue
+                disAvailable = true;
+                notifyOnDeviceInfoAvailable();
+            }
         }
         else {
-            // We've reached the end of the queue
-            disAvailable = true;
-            notifyOnDeviceInfoAvailable();
+            //Log.w("DIS", "Failed reading characteristic " + characteristic.getUuid().toString());
         }
     }
 
