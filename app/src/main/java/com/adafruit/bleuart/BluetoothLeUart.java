@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
-import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

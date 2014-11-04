@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -17,6 +18,7 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     // UI elements
     private TextView messages;
     private EditText input;
+    private Button   send;
 
     // Bluetooth LE UART instance.  This is defined in BluetoothLeUart.java.
     private BluetoothLeUart uart;
@@ -43,17 +45,14 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
         // up into 20 byte payloads
         int len = message.length();
         int pos = 0;
-        while(len != 0)
-        {
+        while(len != 0) {
             stringBuilder.setLength(0);
-            if (len>=20)
-            {
+            if (len>=20) {
                 stringBuilder.append(message.toCharArray(), pos, 20 );
                 len-=20;
                 pos+=20;
             }
-            else
-            {
+            else {
                 stringBuilder.append(message.toCharArray(), pos, len);
                 len = 0;
             }
@@ -77,6 +76,11 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
 
         // Initialize UART.
         uart = new BluetoothLeUart(getApplicationContext());
+
+        // Disable the send button until we're connected.
+        send = (Button)findViewById(R.id.send);
+        send.setClickable(false);
+        send.setEnabled(false);
     }
 
     // OnCreate, called once to initialize the activity.
@@ -91,7 +95,7 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     @Override
     protected void onResume() {
         super.onResume();
-        writeLine("Connecting...");
+        writeLine("Scanning for devices ...");
         uart.registerCallback(this);
         uart.connectFirstAvailable();
     }
@@ -121,19 +125,44 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     public void onConnected(BluetoothLeUart uart) {
         // Called when UART device is connected and ready to send/receive data.
         writeLine("Connected!");
-        // ToDo: Insert a timeout waiting for device information!
+        // Enable the send button
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                send = (Button)findViewById(R.id.send);
+                send.setClickable(true);
+                send.setEnabled(true);
+            }
+        });
     }
 
     @Override
     public void onConnectFailed(BluetoothLeUart uart) {
         // Called when some error occured which prevented UART connection from completing.
         writeLine("Error connecting to device!");
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                send = (Button)findViewById(R.id.send);
+                send.setClickable(false);
+                send.setEnabled(false);
+            }
+        });
     }
 
     @Override
     public void onDisconnected(BluetoothLeUart uart) {
         // Called when the UART device disconnected.
         writeLine("Disconnected!");
+        // Disable the send button.
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                send = (Button)findViewById(R.id.send);
+                send.setClickable(false);
+                send.setEnabled(false);
+            }
+        });
     }
 
     @Override
@@ -145,7 +174,8 @@ public class MainActivity extends Activity implements BluetoothLeUart.Callback {
     @Override
     public void onDeviceFound(BluetoothDevice device) {
         // Called when a UART device is discovered (after calling startScan).
-        writeLine("Found device: " + device.getAddress());
+        writeLine("Found device : " + device.getAddress());
+        writeLine("Waiting for a connection ...");
     }
 
     @Override
